@@ -16,7 +16,6 @@
     rabbitmq_password: "CHANGE_ME_rabbitmq_password"
     
     # ASKCOS Application Secrets - CHANGE THESE
-    oauth2_secret_key: "CHANGE_ME_oauth2_secret_key"
     v1_username: "askcos"
     v1_password: "CHANGE_ME_v1_password"
     
@@ -102,7 +101,6 @@
         definition:
           type: Opaque
           stringData:
-            OAUTH2_SECRET_KEY: "{{ oauth2_secret_key }}"
             V1_USERNAME: "{{ v1_username }}"
             V1_PASSWORD: "{{ v1_password }}"
 

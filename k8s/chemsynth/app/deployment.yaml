@@ -37,11 +37,7 @@ spec:
               value: "False"
             - name: AUTH_MODIFY_BUYABLES
               value: "False"
-            - name: OAUTH2_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: askcos-env
-                  key: OAUTH2_SECRET_KEY
+
             - name: V1_USERNAME
               valueFrom:
                 secretKeyRef:

@@ -53,11 +53,7 @@ spec:
               value: "rabbitmq.chemsynth.svc.cluster.local"
             - name: RABBITMQ_PORT
               value: "5672"
-            - name: OAUTH2_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: askcos-env
-                  key: OAUTH2_SECRET_KEY
+
           resources:
             requests:
               memory: 2Gi
