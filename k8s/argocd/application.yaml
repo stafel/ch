@@ -12,7 +12,8 @@ spec:
     repoURL: https://github.com/stafel/ch.git
     targetRevision: main
     path: k8s/chemsynth
-    directoryRecurse: true
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: chemsynth
