@@ -10,7 +10,7 @@ spec:
     kind: ClusterIssuer
   dnsNames:
     - synth.maus.local
-    
+
   privateKey:
     algorithm: ECDSA
     encoding: PKCS8
