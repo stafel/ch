@@ -35,6 +35,13 @@
           changed_when: false
           failed_when: kubectl_check.rc != 0
 
+    - name: Ensure namespace exists
+      kubernetes.core.k8s:
+        name: "{{ namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+
     - name: Create MongoDB credentials secret
       kubernetes.core.k8s:
         api_version: v1
@@ -113,6 +120,11 @@
       vars:
         docker_auth: "{{ registry_username }}:{{ registry_password }}"
 
+    - name: Apply the Argo CD Application
+      kubernetes.core.k8s:
+        state: present
+        src: "./../k8s/argocd/application.yaml"
+
     - name: Display deployment summary
       debug:
         msg: |
@@ -129,10 +141,9 @@
             - gitlab-registry
           
           Next Steps:
-            1. Deploy the Argo CD Application: kubectl apply -f k8s/argocd/application.yaml
-            2. Argo CD will deploy: namespace, certificate, ingressroute, and ASKCOS helm chart
-            3. Monitor deployment: kubectl -n {{ namespace }} get pods
-            4. Access application at: https://synth.maus.local
+            1. Argo CD will deploy: namespace, certificate, ingressroute, and ASKCOS helm chart
+            2. Monitor deployment: kubectl -n {{ namespace }} get pods
+            3. Access application at: https://synth.maus.local
           
           Note: The Argo CD Application uses directoryRecurse to deploy all manifests
           in k8s/chemsynth/ including namespace, certificate, and ingressroute.
