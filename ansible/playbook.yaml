@@ -173,7 +173,6 @@
           Only V1_PASSWORD needs to be set by you (user-facing credential).
 
     - name: Deploy Argo CD Application
-      command: kubectl apply -f k8s/argocd/application.yaml
-      register: argocd_deploy
-      changed_when: false
-      failed_when: argocd_deploy.rc != 0
+      kubernetes.core.k8s:
+        state: present
+        src: k8s/argocd/application.yaml
