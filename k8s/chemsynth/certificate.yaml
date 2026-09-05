@@ -1,15 +1,28 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: synth-maus-local
+  name: synth-maus-local-tls
   namespace: chemsynth
-  labels:
-    app: askcos
-    app.kubernetes.io/part-of: askcos
 spec:
   secretName: synth-maus-local-tls
   issuerRef:
-    name: letsencrypt-prod
+    name: ca-issuer
     kind: ClusterIssuer
   dnsNames:
     - synth.maus.local
+    
+  privateKey:
+    algorithm: ECDSA
+    encoding: PKCS8
+    size: 256
+
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+
+  isCA: false
+  usages:
+    - server auth
+
+  subject:
+    organizations:
+      - cert-manager

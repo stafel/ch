@@ -6,14 +6,6 @@ metadata:
   labels:
     app: askcos
     app.kubernetes.io/part-of: askcos
-  annotations:
-    # cert-manager annotations for TLS certificate
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    # Ingress class (use your cluster's ingress class)
-    kubernetes.io/ingress.class: "traefik"
-    # For HTTPS redirect
-    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
-    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   tls:
     - hosts:
