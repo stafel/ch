@@ -31,7 +31,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: mongodb-credentials
-                  key: mongodb-root-username
+                  key: mongodb-username
             - name: MONGO_INITDB_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
