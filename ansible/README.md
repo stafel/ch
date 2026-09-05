@@ -4,20 +4,11 @@ This Ansible playbook creates the required Kubernetes secrets for deploying ASKC
 
 ## Prerequisites
 
-The target Kubernetes cluster must have the following already installed:
+The target Kubernetes cluster must have the following already installed and configured:
 
-- **k3s** or any Kubernetes distribution
-- **Traefik** as ingress controller
-- **cert-manager** for TLS certificate management
-- **Argo CD** for GitOps deployment
-- **kubectl** configured to access the cluster
-- **Ansible** 2.14+ with `kubernetes.core` collection
-
-### Required Ansible Collections
-
-```bash
-ansible-galaxy collection install kubernetes.core
-```
+- k3s or any Kubernetes distribution
+- kubectl configured to access the cluster
+- Ansible 2.14+ with `kubernetes.core` collection
 
 ## Quick Start
 
@@ -29,13 +20,7 @@ ansible-galaxy collection install -r requirements.yml
 
 ### 2. Configure Variables
 
-Edit `playbook.yaml` and change all `CHANGE_ME_*` variables:
-
-- Database passwords (mongodb, mysql, redis, rabbitmq)
-- ASKCOS secrets (oauth2_secret_key, v1_password)
-- Container registry credentials (gitlab_username, gitlab_access_token)
-
-Or create a `vars.yaml` file with your values:
+Edit `playbook.yaml` and change all `CHANGE_ME_*` variables, or create a `vars.yaml` file:
 
 ```yaml
 # vars.yaml
@@ -72,7 +57,7 @@ This playbook **only creates Kubernetes secrets**. It does NOT deploy the applic
 
 1. **Validates Prerequisites**: Checks that kubectl is available and cluster is accessible
 
-2. **Creates All Required Secrets**:
+2. **Creates All Required Secrets** in the `chemsynth` namespace:
    - `mongodb-credentials` - MongoDB root and user passwords
    - `mysql-credentials` - MySQL root password
    - `redis-credentials` - Redis password
@@ -85,7 +70,6 @@ This playbook **only creates Kubernetes secrets**. It does NOT deploy the applic
 After running this playbook, deploy the Argo CD Application:
 
 ```bash
-# Deploy Argo CD Application
 kubectl apply -f k8s/argocd/application.yaml
 ```
 
@@ -135,25 +119,6 @@ Change the namespace variable:
 ```yaml
 namespace: your-namespace
 ```
-
-## Troubleshooting
-
-### Secrets Not Created
-
-```bash
-# Check if namespace exists
-kubectl get ns chemsynth
-
-# Check secret creation
-kubectl -n chemsynth get secrets
-
-# Check kubectl access
-kubectl cluster-info
-```
-
-### Permission Issues
-
-Ensure your kubectl context has permissions to create secrets in the target namespace.
 
 ## Security Notes
 
