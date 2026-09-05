@@ -26,8 +26,10 @@ spec:
           ports:
             - containerPort: 80
               name: http
-            - containerPort: 443
-              name: https
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
           envFrom:
             - configMapRef:
                 name: askcos-config
@@ -67,6 +69,10 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: askcos-web-nginx
 ---
 apiVersion: v1
 kind: Service
@@ -84,3 +90,42 @@ spec:
       name: http
   selector:
     app: askcos-web
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: askcos-web-nginx
+  namespace: chemsynth
+  labels:
+    app: askcos-web
+    app.kubernetes.io/part-of: askcos
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+      include /etc/nginx/mime.types;
+      proxy_read_timeout 600;
+      uwsgi_read_timeout 600;
+
+      server {
+        listen 80;
+        server_name _;
+        client_max_body_size 25M;
+
+        location / {
+          root /usr/share/nginx/html;
+          index index.html;
+          try_files $uri $uri/ /index.html;
+        }
+
+        location /api/ {
+          proxy_set_header Host $host;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_pass http://askcos-app:9100;
+        }
+      }
+    }

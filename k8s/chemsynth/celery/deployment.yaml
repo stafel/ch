@@ -51,6 +51,16 @@ spec:
                 secretKeyRef:
                   name: mongodb-credentials
                   key: mongodb-root-password
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-username
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-password
           volumeMounts:
             - name: precompute-data
               mountPath: /ASKCOSv2/askcos2_core/data/precompute

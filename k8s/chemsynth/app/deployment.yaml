@@ -43,7 +43,10 @@ spec:
                   name: mongodb-credentials
                   key: mongodb-root-password
             - name: OAUTH2_SECRET_KEY
-              value: "1d21d866fe6c71df2e2ab948e3d7d6bcf369c3d0f1f99d71570dc48365856c49"
+              valueFrom:
+                secretKeyRef:
+                  name: askcos-env
+                  key: OAUTH2_SECRET_KEY
           resources:
             requests:
               memory: 2Gi
