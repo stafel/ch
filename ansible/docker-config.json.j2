@@ -1,0 +1,10 @@
+{
+  "auths": {
+    "{{ registry_server }}": {
+      "username": "{{ registry_username }}",
+      "password": "{{ registry_password }}",
+      "email": "{{ registry_email }}",
+      "auth": "{{ docker_auth | b64encode }}"
+    }
+  }
+}

@@ -1,0 +1,394 @@
+---
+- name: Deploy ASKCOS Chemical Retrosynthesis Application
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  vars:
+    # Namespace
+    namespace: chemsynth
+    
+    # Domain
+    domain: synth.maus.local
+    
+    # ASKCOS Configuration
+    askcos_organization: "ChemSynth"
+    askcos_contact_email: "admin@maus.local"
+    askcos_support_emails: "admin@maus.local"
+    askcos_enable_smiles_resolver: "False"
+    askcos_auth_modify_buyables: "False"
+    askcos_current_host: "synth.maus.local"
+    
+    # Database Credentials - CHANGE THESE
+    mongodb_root_password: "CHANGE_ME_mongodb_root_password"
+    mongodb_password: "CHANGE_ME_mongodb_password"
+    mysql_root_password: "CHANGE_ME_mysql_root_password"
+    redis_password: "CHANGE_ME_redis_password"
+    rabbitmq_password: "CHANGE_ME_rabbitmq_password"
+    
+    # ASKCOS Application Secrets - CHANGE THESE
+    oauth2_secret_key: "CHANGE_ME_oauth2_secret_key"
+    v1_username: "askcos"
+    v1_password: "CHANGE_ME_v1_password"
+    
+    # Container Registry - CHANGE THESE (GitLab registry for FourThievesVinegar images)
+    registry_server: "registry.gitlab.com"
+    registry_username: "CHANGE_ME_gitlab_username"
+    registry_password: "CHANGE_ME_gitlab_access_token"
+    registry_email: "CHANGE_ME_your_email@example.com"
+    
+    # Image Configuration
+    app_image_repository: "registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/app"
+    app_image_tag: "2.0"
+    
+    # Argo CD Configuration
+    argocd_namespace: argocd
+    argocd_project: default
+    
+    # cert-manager Issuer (must exist in cluster)
+    cert_manager_issuer: letsencrypt-prod
+    cert_manager_issuer_kind: ClusterIssuer
+    
+    # Resource Configuration
+    mongodb_storage_size: 10Gi
+    mongodb_memory_request: 1Gi
+    mongodb_memory_limit: 2Gi
+    app_memory_request: 2Gi
+    nginx_memory_request: 256Mi
+
+  tasks:
+    - name: Validate prerequisites
+      block:
+        - name: Check kubectl is available
+          command: kubectl version --client
+          register: kubectl_check
+          changed_when: false
+          failed_when: kubectl_check.rc != 0
+          
+        - name: Check helm is available
+          command: helm version
+          register: helm_check
+          changed_when: false
+          failed_when: helm_check.rc != 0
+
+    - name: Create chemsynth namespace
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Namespace
+        name: "{{ namespace }}"
+        state: present
+        labels:
+          name: "{{ namespace }}"
+          app.kubernetes.io/part-of: askcos
+
+    - name: Create cert-manager Certificate for synth.maus.local
+      kubernetes.core.k8s:
+        api_version: cert-manager.io/v1
+        kind: Certificate
+        namespace: "{{ namespace }}"
+        name: "{{ domain | replace('.', '-') }}-tls"
+        state: present
+        definition:
+          spec:
+            secretName: "{{ domain | replace('.', '-') }}-tls"
+            issuerRef:
+              name: "{{ cert_manager_issuer }}"
+              kind: "{{ cert_manager_issuer_kind }}"
+              group: cert-manager.io
+            dnsNames:
+              - "{{ domain }}"
+
+    - name: Create Traefik IngressRoute
+      kubernetes.core.k8s:
+        api_version: traefik.containo.us/v1alpha1
+        kind: IngressRoute
+        namespace: "{{ namespace }}"
+        name: askcos-ingress
+        state: present
+        definition:
+          metadata:
+            annotations:
+              cert-manager.io/cluster-issuer: "{{ cert_manager_issuer }}"
+              traefik.ingress.kubernetes.io/router.entrypoints: websecure
+              traefik.ingress.kubernetes.io/router.tls: "true"
+          spec:
+            entryPoints:
+              - websecure
+            routes:
+              - kind: Rule
+                match: "Host(`{{ domain }}`)"
+                priority: 10
+                services:
+                  - name: askcos-nginx
+                    namespace: "{{ namespace }}"
+                    port: 80
+                    scheme: http
+            tls:
+              secretName: "{{ domain | replace('.', '-') }}-tls"
+
+    - name: Create MongoDB credentials secret
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ namespace }}"
+        name: mongodb-credentials
+        state: present
+        definition:
+          type: Opaque
+          stringData:
+            mongodb-root-password: "{{ mongodb_root_password }}"
+            mongodb-password: "{{ mongodb_password }}"
+            mongodb-username: askcos
+
+    - name: Create MySQL credentials secret
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ namespace }}"
+        name: mysql-credentials
+        state: present
+        definition:
+          type: Opaque
+          stringData:
+            mysql-root-password: "{{ mysql_root_password }}"
+
+    - name: Create Redis credentials secret
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ namespace }}"
+        name: redis-credentials
+        state: present
+        definition:
+          type: Opaque
+          stringData:
+            redis-password: "{{ redis_password }}"
+
+    - name: Create RabbitMQ credentials secret
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ namespace }}"
+        name: rabbitmq-credentials
+        state: present
+        definition:
+          type: Opaque
+          stringData:
+            rabbitmq-password: "{{ rabbitmq_password }}"
+
+    - name: Create ASKCOS environment secrets
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ namespace }}"
+        name: askcos-env
+        state: present
+        definition:
+          type: Opaque
+          stringData:
+            OAUTH2_SECRET_KEY: "{{ oauth2_secret_key }}"
+            V1_USERNAME: "{{ v1_username }}"
+            V1_PASSWORD: "{{ v1_password }}"
+            CONTACT_EMAIL: "{{ askcos_contact_email }}"
+            SUPPORT_EMAILS: "{{ askcos_support_emails }}"
+
+    - name: Create container registry secret
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ namespace }}"
+        name: gitlab-registry
+        state: present
+        definition:
+          type: kubernetes.io/dockerconfigjson
+          data:
+            ".dockerconfigjson": "{{ lookup('template', 'docker-config.json.j2') | b64encode }}"
+      vars:
+        docker_auth: "{{ registry_username }}:{{ registry_password }}"
+
+    - name: Deploy Argo CD Application
+      kubernetes.core.k8s:
+        api_version: argoproj.io/v1alpha1
+        kind: Application
+        namespace: "{{ argocd_namespace }}"
+        name: askcos-chemsynth
+        state: present
+        definition:
+          metadata:
+            labels:
+              app.kubernetes.io/name: askcos
+              app.kubernetes.io/part-of: chemsynth
+          spec:
+            project: "{{ argocd_project }}"
+            source:
+              repoURL: https://github.com/ASKCOS/askcos-deploy.git
+              targetRevision: main
+              path: helm/askcos
+              helm:
+                releaseName: askcos
+                values: |
+                  nameOverride: askcos
+                  fullnameOverride: askcos
+                  
+                  env:
+                    CURRENT_HOST: "{{ askcos_current_host }}"
+                    ORGANIZATION: "{{ askcos_organization }}"
+                    CONTACT_EMAIL: "{{ askcos_contact_email }}"
+                    SUPPORT_EMAILS: "{{ askcos_support_emails }}"
+                    ENABLE_SMILES_RESOLVER: "{{ askcos_enable_smiles_resolver }}"
+                    AUTH_MODIFY_BUYABLES: "{{ askcos_auth_modify_buyables }}"
+                  
+                  app:
+                    image:
+                      repository: "{{ app_image_repository }}"
+                      tag: "{{ app_image_tag }}"
+                      pullPolicy: IfNotPresent
+                    replicaCount: 1
+                    service:
+                      type: ClusterIP
+                      port: 9100
+                    resources:
+                      requests:
+                        memory: "{{ app_memory_request }}"
+                  
+                  nginx:
+                    name: nginx
+                    image:
+                      repository: bitnami/nginx
+                      tag: 1.25-debian-12
+                      pullPolicy: IfNotPresent
+                    replicaCount: 1
+                    containerPorts:
+                      http: 8080
+                    service:
+                      type: ClusterIP
+                      port: 80
+                    resources:
+                      requests:
+                        memory: "{{ nginx_memory_request }}"
+                  
+                  celery:
+                    - name: atommappingworker
+                      replicaCount: 1
+                      cmd: "celery -A askcos_site worker -c 1 -Q atom_mapping_worker -n atom_mapping_worker@%h --pool=gevent"
+                    - name: crnetworkworker
+                      replicaCount: 1
+                      cmd: "celery -A askcos_site worker -c 1 -Q cr_network_worker -n cr_network_worker@%h --pool=gevent"
+                    - name: descriptorsworker
+                      replicaCount: 1
+                      cmd: "celery -A askcos_site worker -c 1 -Q descriptors_worker -n descriptors_worker@%h"
+                    - name: sitesworker
+                      replicaCount: 1
+                      cmd: "celery -A askcos_site worker -c 1 -Q sites_worker -n sites_worker@%h --pool=gevent"
+                    - name: tffpworker
+                      replicaCount: 1
+                      cmd: "celery -A askcos_site worker -c 1 -Q tffp_worker -n tffp_worker@%h --pool=gevent"
+                  
+                  mlserver: []
+                  
+                  mongodb:
+                    enabled: true
+                    architecture: standalone
+                    auth:
+                      rootPassword: ""
+                      username: askcos
+                      password: ""
+                      database: askcos
+                    resources:
+                      requests:
+                        memory: "{{ mongodb_memory_request }}"
+                      limits:
+                        memory: "{{ mongodb_memory_limit }}"
+                    persistence:
+                      enabled: true
+                      size: "{{ mongodb_storage_size }}"
+                  
+                  mysql:
+                    enabled: true
+                    db:
+                      name: askcos_db
+                    root:
+                      password: ""
+                    replication:
+                      enabled: false
+                    resources:
+                      requests:
+                        memory: 512Mi
+                  
+                  rabbitmq:
+                    auth:
+                      username: guest
+                      password: guest
+                    resources:
+                      requests:
+                        memory: 256Mi
+                  
+                  redis:
+                    cluster:
+                      enabled: false
+                    usePassword: false
+                    password: ""
+                    resources:
+                      requests:
+                        memory: 128Mi
+                  
+                  mongoSeed:
+                    enabled: false
+                  
+                  serviceAccount:
+                    create: true
+                    annotations: {}
+                  
+                  imagePullSecrets: []
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: "{{ namespace }}"
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+                allowEmpty: false
+              syncOptions:
+                - CreateNamespace=true
+                - ApplyOutOfSyncOnly=true
+              retry:
+                limit: 5
+                backoff:
+                  duration: 5s
+                  factor: 2
+                  maxDuration: 3m
+            ignoreDifferences:
+              - kind: Secret
+                jsonPointers:
+                  - /data
+
+    - name: Display deployment summary
+      debug:
+        msg: |
+          ASKCOS Chemical Retrosynthesis Deployment Complete!
+          
+          Namespace: {{ namespace }}
+          Domain: {{ domain }}
+          
+          Secrets Created:
+            - mongodb-credentials
+            - mysql-credentials
+            - redis-credentials
+            - rabbitmq-credentials
+            - askcos-env
+            - gitlab-registry
+          
+          Resources Deployed:
+            - Certificate: {{ domain | replace('.', '-') }}-tls
+            - IngressRoute: askcos-ingress
+            - Argo CD Application: askcos-chemsynth
+          
+          Next Steps:
+            1. Verify certificate is ready: kubectl -n {{ namespace }} get certificate
+            2. Check Argo CD sync status: argocd app get askcos-chemsynth
+            3. Monitor deployment: kubectl -n {{ namespace }} get pods
+            4. Access application at: https://{{ domain }}
+          
+          Note: It may take several minutes for all pods to become ready.
+          The ML servers are disabled by default. To enable them, update the
+          Argo CD Application manifest to include mlserver configurations.
