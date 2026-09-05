@@ -29,6 +29,16 @@
           changed_when: false
           failed_when: kubectl_check.rc != 0
 
+    - name: Create chemsynth namespace
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Namespace
+        name: "{{ namespace }}"
+        state: present
+        labels:
+          name: "{{ namespace }}"
+          app.kubernetes.io/part-of: askcos
+
     - name: Generate random MongoDB passwords
       set_fact:
         mongodb_root_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
@@ -161,3 +171,9 @@
           
           Note: Database passwords have been auto-generated with secure random values.
           Only V1_PASSWORD needs to be set by you (user-facing credential).
+
+    - name: Deploy Argo CD Application
+      command: kubectl apply -f k8s/argocd/application.yaml
+      register: argocd_deploy
+      changed_when: false
+      failed_when: argocd_deploy.rc != 0
