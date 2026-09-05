@@ -135,6 +135,9 @@
           stringData:
             V1_USERNAME: "{{ v1_username }}"
             V1_PASSWORD: "{{ v1_password }}"
+            OAUTH2_SECRET_KEY: >-
+              {{ lookup('password', '/tmp/oauth2-secret', length=64,
+              chars='ascii_letters,digits') }}
 
     - name: Create container registry secret (optional)
       kubernetes.core.k8s:

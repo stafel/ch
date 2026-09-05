@@ -46,7 +46,7 @@ The Kubernetes cluster must have the following installed and configured:
     └── chemsynth/
         ├── namespace.yaml              # Namespace definition
         ├── certificate.yaml            # cert-manager Certificate
-        ├── ingress.yaml                # Standard Kubernetes Ingress
+        ├── ingressroute.yaml            # Standard Kubernetes Ingress
         ├── app/
         │   ├── configmap.yaml           # ASKCOS v2 Configuration
         │   └── deployment.yaml          # ASKCOS FastAPI App v2
@@ -77,7 +77,7 @@ The Kubernetes cluster must have the following installed and configured:
 | `redis` | StatefulSet | `redis:7.0-alpine` | 6379 | Redis cache with persistent storage |
 | `rabbitmq` | StatefulSet | `rabbitmq:3.11-alpine` | 5672, 15672 | RabbitMQ message broker with persistent storage |
 | `askcos-app` | Deployment | `registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/app:2.0` | 9100 | ASKCOS FastAPI API Gateway v2 |
-| `askcos-web` | Deployment | `registry.gitlab.com/mlpds_mit/askcosv2/askcos-vue-nginx:2.0` | 80, 443 | Vue.js Web Frontend v2 |
+| `askcos-web` | Deployment | `registry.gitlab.com/mlpds_mit/askcosv2/askcos-vue-nginx:2.0` | 80 | Vue.js Web Frontend v2 and API reverse proxy |
 | `askcos-precompute` | Deployment | `registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/precompute:2.0` | - | Precomputation Service v2 |
 | `askcos-celery-worker` | Deployment | `registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/celery:2.0` | - | Celery workers for background tasks v2 |
 
@@ -171,7 +171,7 @@ The following secrets are created by the Ansible playbook in the `chemsynth` nam
 | Service | Port | Protocol |
 |---------|------|-----------|
 | askcos-app | 9100 | HTTP |
-| askcos-web | 80, 443 | HTTP/HTTPS |
+| askcos-web | 80 | HTTP (TLS terminates at the Ingress) |
 | mongodb | 27017 | MongoDB |
 | redis | 6379 | Redis |
 | rabbitmq | 5672 | AMQP |
