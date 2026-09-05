@@ -1,0 +1,23 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: askcos-ingress
+  namespace: chemsynth
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`synth.maus.local`)
+      priority: 10
+      services:
+        - name: askcos-nginx
+          namespace: chemsynth
+          port: 80
+          scheme: http
+  tls:
+    secretName: synth-maus-local-tls
