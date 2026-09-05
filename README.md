@@ -90,18 +90,9 @@ The Kubernetes cluster must have the following installed and configured:
 Use the Ansible playbook to create all required Kubernetes secrets:
 
 ```bash
-# Basic deployment (only v1_password required)
-ansible-playbook ansible/playbook.yaml -e v1_password=YOUR_V1_PASSWORD
-
-# With custom username
+# Registry credentials are required to pull the private ASKCOS images.
 ansible-playbook ansible/playbook.yaml \
   -e v1_password=YOUR_V1_PASSWORD \
-  -e v1_username=custom_user
-
-# With container registry credentials (optional)
-ansible-playbook ansible/playbook.yaml \
-  -e v1_password=YOUR_V1_PASSWORD \
-  -e registry_enabled=true \
   -e registry_server=registry.gitlab.com \
   -e registry_username=your_username \
   -e registry_password=your_password \
@@ -149,7 +140,7 @@ The following secrets are created by the Ansible playbook in the `chemsynth` nam
 | `redis-credentials` | `redis-password` | Auto-generated |
 | `rabbitmq-credentials` | `rabbitmq-username`, `rabbitmq-password` | Auto-generated |
 | `askcos-env` | `V1_USERNAME`, `V1_PASSWORD` | User-provided |
-| `gitlab-registry` | `.dockerconfigjson` | User-provided (optional) |
+| `gitlab-registry` | `.dockerconfigjson` | Required to pull private ASKCOS images |
 
 ---
 

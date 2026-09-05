@@ -17,9 +17,7 @@
     # RabbitMQ username (default for ASKCOS v2)
     rabbitmq_username: "askcos"
 
-    # Container Registry - OPTIONAL (only needed for private registry access)
-    # If using public images, these can be left as defaults (anonymous access)
-    registry_enabled: false
+    # Container Registry credentials are required for ASKCOS images.
     registry_server: "registry.gitlab.com"
     registry_username: ""
     registry_password: ""
@@ -37,6 +35,16 @@
         # todo check the python module kubernetes
 
         # todo check if password was changed for real
+
+        - name: Validate GitLab registry credentials
+          ansible.builtin.assert:
+            that:
+              - registry_username | length > 0
+              - registry_password | length > 0
+              - registry_email | length > 0
+            fail_msg: >-
+              registry_username, registry_password, and registry_email are required
+              to pull the private ASKCOS images from registry.gitlab.com.
 
     - name: Create namespace
       kubernetes.core.k8s:
@@ -139,7 +147,7 @@
               {{ lookup('password', '/tmp/oauth2-secret', length=64,
               chars='ascii_letters,digits') }}
 
-    - name: Create container registry secret (optional)
+    - name: Create container registry secret
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
@@ -152,7 +160,6 @@
             ".dockerconfigjson": "{{ lookup('template', 'docker-config.json.j2') | b64encode }}"
       vars:
         docker_auth: "{{ registry_username }}:{{ registry_password }}"
-      when: registry_enabled | bool
 
     - name: Deploy Argo CD Application
       kubernetes.core.k8s:
@@ -182,11 +189,7 @@
             - redis-credentials (with auto-generated password)
             - rabbitmq-credentials (with auto-generated password)
             - askcos-env (with your V1 credentials)
-          {% if registry_enabled | bool %}
             - gitlab-registry (container registry credentials)
-          {% else %}
-            - gitlab-registry (SKIPPED - using anonymous access)
-          {% endif %}
 
           Next Steps:
             1. Argo CD will deploy: namespace, certificate, ingressroute, and all ASKCOS components
