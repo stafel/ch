@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: askcos-config
+  namespace: chemsynth
+  labels:
+    app: askcos-app
+    app.kubernetes.io/part-of: askcos
+data:
+  MODULE_CONFIG_PATH: "configs/module_config_full.py"
+  VERSION_NUMBER: "2026.07"
+  PROTOCOL: "https"
+  GATEWAY_URL: "https://synth.maus.local"
+  MONGO_HOST: "mongodb.chemsynth.svc.cluster.local"
+  MONGO_PORT: "27017"
+  MONGO_USER: "askcos"
+  REDIS_HOST: "redis.chemsynth.svc.cluster.local"
+  REDIS_PORT: "6379"
+  RABBITMQ_HOST: "rabbitmq.chemsynth.svc.cluster.local"
+  RABBITMQ_PORT: "5672"
+  ORGANIZATION: "ChemSynth"
+  ENABLE_SMILES_RESOLVER: "False"
+  CONTACT_EMAIL: "admin@maus.local"
+  SUPPORT_EMAILS: "admin@maus.local"
+  VITE_VERSION: "2026.07"
+  VITE_ORGANIZATION: "ChemSynth"
+  VITE_ENABLE_SMILES_RESOLVER: "False"
+  VITE_CONTACT_EMAIL: "admin@maus.local"
+  VITE_SUPPORT_EMAILS: "admin@maus.local"
+  VITE_EMAIL_REQUIRED: "False"
+  VITE_GUEST_LOGIN: "True"

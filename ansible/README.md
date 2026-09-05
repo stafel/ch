@@ -1,164 +1,233 @@
-# ASKCOS Chemical Retrosynthesis - Ansible Secrets Setup
+# Ansible Playbook for ASKCOS v2 Deployment
 
-This Ansible playbook creates the required Kubernetes secrets for deploying ASKCOS (FourThievesVinegar fork) chemical retrosynthesis application. The actual application deployment is managed by Argo CD.
+This Ansible playbook creates the required Kubernetes secrets for deploying ASKCOS v2 Chemical Retrosynthesis tool using Argo CD.
+
+## Overview
+
+The playbook performs the following:
+
+1. **Namespace Creation**: Creates the `chemsynth` namespace
+2. **Auto-Generated Passwords**: Generates secure random passwords for all database services
+3. **Secret Creation**: Creates all required Kubernetes secrets:
+   - `mongodb-credentials` - MongoDB root and user passwords
+   - `mysql-credentials` - MySQL root password (for Keycloak, optional)
+   - `redis-credentials` - Redis password
+   - `rabbitmq-credentials` - RabbitMQ username and password
+   - `askcos-env` - ASKCOS application secrets (V1_USERNAME, V1_PASSWORD)
+   - `gitlab-registry` - Container registry credentials (optional)
+4. **Argo CD Deployment**: Deploys the Argo CD Application manifest
 
 ## Prerequisites
 
-The target Kubernetes cluster must have the following already installed and configured:
+- Ansible 2.14+
+- Python 3.6+
+- `kubernetes.core` Ansible collection
+- `community.general` Ansible collection
+- kubectl configured with access to your Kubernetes cluster
+- Cluster has Traefik, cert-manager, and Argo CD pre-installed
 
-- k3s or any Kubernetes distribution
-- kubectl configured to access the cluster
-- Ansible 2.14+ with `kubernetes.core` collection
+## Installation
 
-## Quick Start
-
-### 1. Install Ansible Collections
+### Install Ansible Collections
 
 ```bash
-ansible-galaxy collection install -r requirements.yml
+ansible-galaxy install -r requirements.yml
 ```
 
-### 2. Configure Variables
+Or install manually:
 
-Edit `playbook.yaml` and change the user-facing credentials:
+```bash
+ansible-galaxy collection install kubernetes.core community.general
+```
+
+## Usage
+
+### Basic Deployment (Minimal Input)
+
+Only `v1_password` is required - all other passwords are auto-generated:
+
+```bash
+ansible-playbook playbook.yaml -e v1_password=YOUR_V1_PASSWORD
+```
+
+### Custom Username
+
+```bash
+ansible-playbook playbook.yaml -e v1_password=YOUR_V1_PASSWORD -e v1_username=custom_user
+```
+
+### With Container Registry
+
+```bash
+ansible-playbook playbook.yaml \
+  -e v1_password=YOUR_V1_PASSWORD \
+  -e registry_enabled=true \
+  -e registry_server=registry.gitlab.com \
+  -e registry_username=your_username \
+  -e registry_password=your_password \
+  -e registry_email=your@email.com
+```
+
+### Using a Variables File
+
+Create a `vars.yaml` file:
 
 ```yaml
-# playbook.yaml
-v1_password: "CHANGE_ME_v1_password"
+v1_username: "askcos"
+v1_password: "your_v1_password_here"
+registry_enabled: false
 ```
 
-Or create a `vars.yaml` file with your values:
+Then run:
 
-```yaml
-# vars.yaml
-v1_password: "your_v1_password"
-```
-
-For container registry access (optional - only needed for private registries):
-
-```yaml
-# vars.yaml
-registry_enabled: true
-registry_username: "your_gitlab_username"
-registry_password: "your_gitlab_access_token"
-registry_email: "your.email@example.com"
-```
-
-Then run the playbook with:
 ```bash
 ansible-playbook playbook.yaml -e @vars.yaml
 ```
 
-### 3. Run the Playbook
+## Secrets Created
+
+### Auto-Generated Secrets (32-character random passwords)
+
+- **mongodb-credentials**
+  - `mongodb-root-password`: Auto-generated
+  - `mongodb-password`: Auto-generated
+  - `mongodb-username`: `askcos` (hardcoded)
+
+- **mysql-credentials**
+  - `mysql-root-password`: Auto-generated
+  - Note: MySQL is only used for Keycloak in v2, disabled by default
+
+- **redis-credentials**
+  - `redis-password`: Auto-generated
+
+- **rabbitmq-credentials**
+  - `rabbitmq-username`: `askcos` (configurable)
+  - `rabbitmq-password`: Auto-generated
+
+### User-Provided Secrets
+
+- **askcos-env**
+  - `V1_USERNAME`: Configurable (default: `askcos`)
+  - `V1_PASSWORD`: **REQUIRED** - You must provide this
+
+### Optional Secrets
+
+- **gitlab-registry**
+  - Docker registry credentials for pulling private images
+  - Only created if `registry_enabled: true`
+  - Uses `kubernetes.io/dockerconfigjson` type
+
+## Argo CD Application Deployment
+
+The playbook automatically deploys the Argo CD Application from `k8s/argocd/application.yaml`.
+
+Argo CD will then deploy all manifests from `k8s/chemsynth/`:
+- namespace.yaml
+- certificate.yaml
+- ingressroute.yaml
+- app/configmap.yaml
+- app/deployment.yaml
+- web/deployment.yaml
+- precompute/deployment.yaml
+- celery/deployment.yaml
+- mongodb/statefulset.yaml
+- redis/statefulset.yaml
+- rabbitmq/statefulset.yaml
+
+## Security Notes
+
+1. **Generated Passwords**: All database passwords are generated using Ansible's `password` lookup with 32-character random strings
+2. **No Secrets in Repo**: No sensitive data is stored in the repository
+3. **Display**: Generated passwords are displayed at the end of the playbook run - save them securely
+4. **Kubernetes Secrets**: All secrets are stored as Kubernetes Secrets (base64 encoded)
+
+## Verification
+
+After running the playbook:
 
 ```bash
-# Dry run (check what will be done)
-ansible-playbook playbook.yaml --check
+# Check namespace
+kubectl get namespace chemsynth
 
-# Actual deployment
-ansible-playbook playbook.yaml
-```
+# Check secrets
+kubectl -n chemsynth get secrets
 
-## What This Playbook Does
-
-This playbook **only creates Kubernetes secrets**. It does NOT deploy the application.
-
-1. **Validates Prerequisites**: Checks that kubectl is available and cluster is accessible
-
-2. **Auto-generates secure passwords** for non-user-facing database credentials:
-   - MongoDB root password (32 chars, random)
-   - MongoDB user password (32 chars, random)
-   - MySQL root password (32 chars, random)
-   - Redis password (32 chars, random)
-   - RabbitMQ password (32 chars, random)
-
-3. **Creates All Required Secrets** in the `chemsynth` namespace:
-   - `mongodb-credentials` - MongoDB root and user passwords (auto-generated)
-   - `mysql-credentials` - MySQL root password (auto-generated)
-   - `redis-credentials` - Redis password (auto-generated)
-   - `rabbitmq-credentials` - RabbitMQ password (auto-generated)
-   - `askcos-env` - ASKCOS application secrets (V1 credentials - you provide)
-   - `gitlab-registry` - Container registry credentials (optional, only if `registry_enabled: true`)
-
-## Post-Secrets Creation: Deploy with Argo CD
-
-After running this playbook, deploy the Argo CD Application:
-
-```bash
-kubectl apply -f k8s/argocd/application.yaml
-```
-
-The Argo CD Application will deploy:
-- Namespace: `chemsynth`
-- Certificate: TLS certificate for `synth.maus.local` via cert-manager
-- IngressRoute: Traefik configuration for HTTPS access
-- All ASKCOS components (MongoDB, Redis, RabbitMQ, App, Nginx, Celery)
-
-### Verify Deployment
-
-```bash
-# Check Argo CD sync status
+# Check Argo CD application
 argocd app get askcos-chemsynth
 
-# Monitor pods
-kubectl -n chemsynth get pods -w
-
-# Check certificate
-kubectl -n chemsynth get certificate
-
-# Access application
-# https://synth.maus.local
+# Monitor sync
+argocd app logs askcos-chemsynth
 ```
 
 ## Customization
 
-### Encrypted Variables (Recommended for Production)
+### Password Length
 
-For production, use Ansible Vault:
+Modify `passwd_len` variable in the playbook (default: 32):
+
+```yaml
+vars:
+  passwd_len: 64  # Use 64-character passwords
+```
+
+### RabbitMQ Username
+
+```yaml
+vars:
+  rabbitmq_username: "custom_rabbitmq_user"
+```
+
+### MongoDB Username
+
+The MongoDB username is currently hardcoded to `askcos` in the manifests. To change it, update the `MONGO_INITDB_ROOT_USERNAME` and `MONGO_USER` values in the MongoDB StatefulSet manifest.
+
+## Troubleshooting
+
+### kubectl not found
 
 ```bash
-# Create encrypted vars file
-ansible-vault create secrets.yaml
+# Install kubectl
+# On Ubuntu/Debian:
+sudo apt-get install -y kubectl
 
-# Edit encrypted file
-ansible-vault edit secrets.yaml
-
-# Run playbook with vault
-ansible-playbook playbook.yaml --ask-vault-pass
+# On macOS:
+brew install kubectl
 ```
 
-### Custom Namespace
+### Python module kubernetes not found
 
-Change the namespace variable:
-
-```yaml
-namespace: your-namespace
+```bash
+pip install kubernetes
 ```
 
-### Container Registry
+### Ansible collection not found
 
-By default, the registry secret creation is **disabled** (`registry_enabled: false`). 
-This allows anonymous access to public container images.
-
-To enable private registry access:
-
-```yaml
-registry_enabled: true
-registry_username: "your_username"
-registry_password: "your_token_or_password"
-registry_email: "your.email@example.com"
+```bash
+ansible-galaxy collection install kubernetes.core community.general
 ```
 
-## Security Notes
+### Connection to Kubernetes cluster failed
 
-1. **Auto-generated passwords**: All database passwords are generated with secure random values (32 characters, including letters, digits, hexdigits, and special characters).
-2. **Only user-facing credentials need manual input**: Only `v1_password` must be provided by you.
-3. **Never commit unencrypted secrets** to version control
-4. Use Ansible Vault for production deployments
-5. The playbook only creates secrets - it does not deploy any application resources
+```bash
+# Verify kubectl configuration
+kubectl cluster-info
+
+# Check current context
+kubectl config current-context
+
+# If using k3s, ensure KUBECONFIG is set
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+```
 
 ## Files
 
-- `playbook.yaml` - Main Ansible playbook for secret creation
-- `docker-config.json.j2` - Template for Docker registry configuration
+- `playbook.yaml` - Main Ansible playbook
+- `docker-config.json.j2` - Jinja2 template for Docker registry configuration
 - `requirements.yml` - Ansible collection requirements
+- `README.md` - This file
+
+## References
+
+- ASKCOS v2: https://gitlab.com/mlpds_mit/askcosv2/askcos2_core
+- Ansible kubernetes.core collection: https://galaxy.ansible.com/kubernetes/core
+- Kubernetes Secrets: https://kubernetes.io/docs/concepts/configuration/secret/

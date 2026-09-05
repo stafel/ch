@@ -1,27 +1,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: askcos-app
+  name: askcos-precompute
   namespace: chemsynth
   labels:
-    app: askcos-app
+    app: askcos-precompute
     app.kubernetes.io/part-of: askcos
     version: "2.0"
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: askcos-app
+      app: askcos-precompute
   template:
     metadata:
       labels:
-        app: askcos-app
+        app: askcos-precompute
         app.kubernetes.io/part-of: askcos
         version: "2.0"
     spec:
       containers:
-        - name: app
-          image: registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/app:2.0
+        - name: precompute
+          image: registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/precompute:2.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9100
@@ -42,43 +42,66 @@ spec:
                 secretKeyRef:
                   name: mongodb-credentials
                   key: mongodb-root-password
-            - name: OAUTH2_SECRET_KEY
-              value: "1d21d866fe6c71df2e2ab948e3d7d6bcf369c3d0f1f99d71570dc48365856c49"
+          volumeMounts:
+            - name: precompute-data
+              mountPath: /ASKCOSv2/askcos2_core/data/precompute
+            - name: buyables-cache
+              mountPath: /ASKCOSv2/askcos2_core/data/db/buyables
           resources:
             requests:
-              memory: 2Gi
-              cpu: 500m
-            limits:
               memory: 4Gi
+              cpu: 1
+            limits:
+              memory: 8Gi
               cpu: 2
           livenessProbe:
             httpGet:
-              path: /api/admin/get-backend-status
+              path: /
               port: 9100
             initialDelaySeconds: 60
             periodSeconds: 30
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
-              path: /api/admin/get-backend-status
+              path: /
               port: 9100
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
+      volumes:
+        - name: precompute-data
+          persistentVolumeClaim:
+            claimName: askcos-precompute-data
+        - name: buyables-cache
+          persistentVolumeClaim:
+            claimName: askcos-buyables-cache
 ---
 apiVersion: v1
-kind: Service
+kind: PersistentVolumeClaim
 metadata:
-  name: askcos-app
+  name: askcos-precompute-data
   namespace: chemsynth
   labels:
-    app: askcos-app
+    app: askcos-precompute
     app.kubernetes.io/part-of: askcos
 spec:
-  type: ClusterIP
-  ports:
-    - port: 9100
-      targetPort: 9100
-      name: http
-  selector:
-    app: askcos-app
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: askcos-buyables-cache
+  namespace: chemsynth
+  labels:
+    app: askcos-precompute
+    app.kubernetes.io/part-of: askcos
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

@@ -6,8 +6,9 @@ metadata:
   labels:
     app: askcos-celery
     app.kubernetes.io/part-of: askcos
+    version: "2.0"
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: askcos-celery
@@ -16,10 +17,11 @@ spec:
       labels:
         app: askcos-celery
         app.kubernetes.io/part-of: askcos
+        version: "2.0"
     spec:
       containers:
         - name: celery
-          image: registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/app:2.0
+          image: registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/celery:2.0
           imagePullPolicy: IfNotPresent
           command:
             - celery
@@ -27,35 +29,44 @@ spec:
             - askcos_site
             - worker
             - -c
-            - "1"
+            - "2"
             - -Q
-            - atom_mapping_worker,cr_network_worker,descriptors_worker,sites_worker,tffp_worker
+            - atom_mapping_worker,cr_network_worker,descriptors_worker,sites_worker,tffp_worker,tb_coordinator_mcts,tb_c_worker
             - -n
             - celery_worker@%h
             - --pool=gevent
+          envFrom:
+            - configMapRef:
+                name: askcos-config
+            - secretRef:
+                name: askcos-env
           env:
-            - name: MONGO_HOST
-              value: "mongodb.chemsynth.svc.cluster.local"
-            - name: MONGO_PORT
-              value: "27017"
-            - name: MONGO_USER
-              value: "askcos"
             - name: MONGO_PW
               valueFrom:
                 secretKeyRef:
                   name: mongodb-credentials
                   key: mongodb-password
-            - name: REDIS_HOST
-              value: "redis.chemsynth.svc.cluster.local"
-            - name: REDIS_PORT
-              value: "6379"
-            - name: RABBITMQ_HOST
-              value: "rabbitmq.chemsynth.svc.cluster.local"
-            - name: RABBITMQ_PORT
-              value: "5672"
-
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-credentials
+                  key: mongodb-root-password
+          volumeMounts:
+            - name: precompute-data
+              mountPath: /ASKCOSv2/askcos2_core/data/precompute
+            - name: buyables-cache
+              mountPath: /ASKCOSv2/askcos2_core/data/db/buyables
           resources:
             requests:
-              memory: 2Gi
-            limits:
               memory: 4Gi
+              cpu: 1
+            limits:
+              memory: 8Gi
+              cpu: 2
+      volumes:
+        - name: precompute-data
+          persistentVolumeClaim:
+            claimName: askcos-precompute-data
+        - name: buyables-cache
+          persistentVolumeClaim:
+            claimName: askcos-buyables-cache

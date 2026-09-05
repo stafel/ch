@@ -14,6 +14,9 @@
     v1_username: "askcos"
     v1_password: "CHANGE_ME_v1_password"
     
+    # RabbitMQ username (default for ASKCOS v2)
+    rabbitmq_username: "askcos"
+    
     # Container Registry - OPTIONAL (only needed for private registry access)
     # If using public images, these can be left as defaults (anonymous access)
     registry_enabled: false
@@ -64,6 +67,10 @@
       set_fact:
         rabbitmq_password: "{{ lookup('password', '/tmp/rabbitmq', length=passwd_len) }}"
 
+    - name: Generate random MySQL password
+      set_fact:
+        mysql_root_password: "{{ lookup('password', '/tmp/mysql', length=passwd_len) }}"
+
     - name: Create MongoDB credentials secret
       kubernetes.core.k8s:
         api_version: v1
@@ -78,7 +85,7 @@
             mongodb-password: "{{ mongodb_password }}"
             mongodb-username: askcos
 
-    - name: Create MySQL credentials secret
+    - name: Create MySQL credentials secret (for Keycloak if enabled)
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
@@ -89,6 +96,7 @@
           type: Opaque
           stringData:
             mysql-root-password: "{{ mysql_root_password }}"
+      when: false  # MySQL not used in v2 by default, only for Keycloak
 
     - name: Create Redis credentials secret
       kubernetes.core.k8s:
@@ -112,6 +120,7 @@
         definition:
           type: Opaque
           stringData:
+            rabbitmq-username: "{{ rabbitmq_username }}"
             rabbitmq-password: "{{ rabbitmq_password }}"
 
     - name: Create ASKCOS environment secrets

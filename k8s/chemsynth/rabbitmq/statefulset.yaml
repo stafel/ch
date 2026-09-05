@@ -12,6 +12,7 @@ spec:
   selector:
     matchLabels:
       app: rabbitmq
+      app.kubernetes.io/part-of: askcos
   template:
     metadata:
       labels:
@@ -20,7 +21,7 @@ spec:
     spec:
       containers:
         - name: rabbitmq
-          image: bitnami/rabbitmq:3.8-debian-10
+          image: rabbitmq:3.11-alpine
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5672
@@ -29,7 +30,10 @@ spec:
               name: http
           env:
             - name: RABBITMQ_DEFAULT_USER
-              value: guest
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-username
             - name: RABBITMQ_DEFAULT_PASS
               valueFrom:
                 secretKeyRef:
@@ -37,29 +41,36 @@ spec:
                   key: rabbitmq-password
           volumeMounts:
             - name: rabbitmq-data
-              mountPath: /bitnami/rabbitmq
+              mountPath: /var/lib/rabbitmq
           resources:
             requests:
-              memory: 256Mi
+              memory: 1Gi
+              cpu: 250m
+            limits:
+              memory: 2Gi
+              cpu: 500m
           livenessProbe:
             exec:
               command:
-                - rabbitmqctl
-                - status
-            initialDelaySeconds: 60
+                - rabbitmq-diagnostics
+                - ping
+            initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
           readinessProbe:
             exec:
               command:
-                - rabbitmqctl
-                - status
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            timeoutSeconds: 5
+                - rabbitmq-diagnostics
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
   volumeClaimTemplates:
     - metadata:
         name: rabbitmq-data
+        labels:
+          app: rabbitmq
+          app.kubernetes.io/part-of: askcos
       spec:
         accessModes:
           - ReadWriteOnce
@@ -86,3 +97,4 @@ spec:
       name: http
   selector:
     app: rabbitmq
+    app.kubernetes.io/part-of: askcos
