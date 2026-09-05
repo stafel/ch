@@ -3,20 +3,20 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  
+
   vars:
     # Namespace
     kubenamespace: chemsynth
-    
+
     passwd_len: 32
 
     # User-facing credentials - CHANGE THESE
     v1_username: "askcos"
     v1_password: "CHANGE_ME_v1_password"
-    
+
     # RabbitMQ username (default for ASKCOS v2)
     rabbitmq_username: "askcos"
-    
+
     # Container Registry - OPTIONAL (only needed for private registry access)
     # If using public images, these can be left as defaults (anonymous access)
     registry_enabled: false
@@ -170,9 +170,9 @@
       ansible.builtin.debug:
         msg: |
           ASKCOS Chemical Retrosynthesis Secrets Created!
-          
+
           Namespace: {{ kubenamespace }}
-          
+
           Secrets Created:
             - mongodb-credentials (with auto-generated passwords)
             - mysql-credentials (with auto-generated password)
@@ -184,11 +184,11 @@
           {% else %}
             - gitlab-registry (SKIPPED - using anonymous access)
           {% endif %}
-          
+
           Next Steps:
             1. Argo CD will deploy: namespace, certificate, ingressroute, and all ASKCOS components
             2. Monitor deployment: kubectl -n {{ kubenamespace }} get pods
             3. Access application at: https://synth.maus.local
-          
+
           Note: Database passwords have been auto-generated with secure random values.
           Only V1_PASSWORD needs to be set by you (user-facing credential).
