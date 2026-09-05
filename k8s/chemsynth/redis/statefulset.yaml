@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: chemsynth
+  labels:
+    app: redis
+    app.kubernetes.io/part-of: askcos
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        app.kubernetes.io/part-of: askcos
+    spec:
+      containers:
+        - name: redis
+          image: bitnami/redis:6.0-debian-10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6379
+              name: redis
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials
+                  key: redis-password
+          args:
+            - /run.sh
+            - --requirepass
+            - $(REDIS_PASSWORD)
+          volumeMounts:
+            - name: redis-data
+              mountPath: /bitnami/redis
+          resources:
+            requests:
+              memory: 128Mi
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - $(REDIS_PASSWORD)
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -a
+                - $(REDIS_PASSWORD)
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: chemsynth
+  labels:
+    app: redis
+    app.kubernetes.io/part-of: askcos
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    app: redis

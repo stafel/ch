@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: askcos-celery-worker
+  namespace: chemsynth
+  labels:
+    app: askcos-celery
+    app.kubernetes.io/part-of: askcos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: askcos-celery
+  template:
+    metadata:
+      labels:
+        app: askcos-celery
+        app.kubernetes.io/part-of: askcos
+    spec:
+      containers:
+        - name: celery
+          image: registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/app:2.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - askcos_site
+            - worker
+            - -c
+            - "1"
+            - -Q
+            - atom_mapping_worker,cr_network_worker,descriptors_worker,sites_worker,tffp_worker
+            - -n
+            - celery_worker@%h
+            - --pool=gevent
+          env:
+            - name: MONGO_HOST
+              value: "mongodb.chemsynth.svc.cluster.local"
+            - name: MONGO_PORT
+              value: "27017"
+            - name: MONGO_USER
+              value: "askcos"
+            - name: MONGO_PW
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-credentials
+                  key: mongodb-password
+            - name: REDIS_HOST
+              value: "redis.chemsynth.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: RABBITMQ_HOST
+              value: "rabbitmq.chemsynth.svc.cluster.local"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: OAUTH2_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: askcos-env
+                  key: OAUTH2_SECRET_KEY
+          resources:
+            requests:
+              memory: 2Gi
+            limits:
+              memory: 4Gi

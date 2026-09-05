@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: askcos-nginx
+  namespace: chemsynth
+  labels:
+    app: askcos-nginx
+    app.kubernetes.io/part-of: askcos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: askcos-nginx
+  template:
+    metadata:
+      labels:
+        app: askcos-nginx
+        app.kubernetes.io/part-of: askcos
+    spec:
+      containers:
+        - name: nginx
+          image: bitnami/nginx:1.25-debian-12
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /opt/bitnami/nginx/conf/server_blocks/
+            - name: staticfiles
+              mountPath: /static
+          resources:
+            requests:
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+        - name: staticfiles
+          emptyDir: {}
+      initContainers:
+        - name: collectstatic
+          image: registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/app:2.0
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c", "cp -r /usr/local/askcos-site/static/. /static/"]
+          volumeMounts:
+            - name: staticfiles
+              mountPath: /static
+        - name: wait-for-app
+          image: alpine:3.12
+          command: ["/bin/sh", "-c", "until nc -z askcos-app 9100; do echo waiting for app; sleep 2; done"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: askcos-nginx
+  namespace: chemsynth
+  labels:
+    app: askcos-nginx
+    app.kubernetes.io/part-of: askcos
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+  selector:
+    app: askcos-nginx

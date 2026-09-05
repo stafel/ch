@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: chemsynth
+  labels:
+    app: rabbitmq
+    app.kubernetes.io/part-of: askcos
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        app.kubernetes.io/part-of: askcos
+    spec:
+      containers:
+        - name: rabbitmq
+          image: bitnami/rabbitmq:3.8-debian-10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: http
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: guest
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: rabbitmq-password
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /bitnami/rabbitmq
+          resources:
+            requests:
+              memory: 256Mi
+          livenessProbe:
+            exec:
+              command:
+                - rabbitmqctl
+                - status
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - rabbitmqctl
+                - status
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: chemsynth
+  labels:
+    app: rabbitmq
+    app.kubernetes.io/part-of: askcos
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5672
+      targetPort: 5672
+      name: amqp
+    - port: 15672
+      targetPort: 15672
+      name: http
+  selector:
+    app: rabbitmq

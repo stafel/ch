@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: chemsynth
+  labels:
+    app: mongodb
+    app.kubernetes.io/part-of: askcos
+spec:
+  serviceName: mongodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+        app.kubernetes.io/part-of: askcos
+    spec:
+      containers:
+        - name: mongodb
+          image: bitnami/mongodb:4.4-debian-10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 27017
+              name: mongodb
+          env:
+            - name: MONGODB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-credentials
+                  key: mongodb-root-password
+            - name: MONGODB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-credentials
+                  key: mongodb-username
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-credentials
+                  key: mongodb-password
+            - name: MONGODB_DATABASE
+              value: askcos
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: /bitnami/mongodb
+          resources:
+            requests:
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: chemsynth
+  labels:
+    app: mongodb
+    app.kubernetes.io/part-of: askcos
+spec:
+  type: ClusterIP
+  ports:
+    - port: 27017
+      targetPort: 27017
+      name: mongodb
+  selector:
+    app: mongodb
