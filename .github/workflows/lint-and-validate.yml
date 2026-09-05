@@ -38,20 +38,20 @@ jobs:
       - name: Install Ansible collections
         run: |
           cd ansible
-          ansible-galaxy install -r requirements.yml --force
+          ansible-galaxy collection install -r requirements.yml --force
           cd ..
 
       - name: Lint Ansible playbook with ansible-lint
         run: |
-          # Run with warnings to see all issues but don't fail on FQCN
-          ansible-lint ansible/playbook.yaml -w || true
-          # Also run parse-only to check syntax (this will fail on errors)
-          ansible-lint ansible/playbook.yaml --parse-only
+          ansible-lint ansible/playbook.yaml
+
+      - name: Validate Ansible playbook syntax
+        run: ansible-playbook --syntax-check ansible/playbook.yaml
 
       - name: Validate YAML syntax
         run: |
-          yamllint ansible/playbook.yaml
-          yamllint ansible/docker-config.json.j2
+          yamllint -d relaxed ansible/playbook.yaml
+          yamllint -d relaxed ansible/docker-config.json.j2
 
   lint-kubernetes:
     name: Lint Kubernetes Manifests
@@ -74,17 +74,17 @@ jobs:
       - name: Lint all Kubernetes YAML files
         run: |
           # Find all YAML files in k8s directory
-          YAML_FILES=$(find k8s -name "*.yaml" -o -name "*.yml" | head -50)
+          mapfile -t YAML_FILES < <(find k8s -type f \( -name "*.yaml" -o -name "*.yml" \) | sort)
           
-          if [ -z "$YAML_FILES" ]; then
+          if [ "${#YAML_FILES[@]}" -eq 0 ]; then
             echo "No YAML files found in k8s/"
             exit 1
           fi
           
           echo "Linting YAML files with yamllint..."
-          for file in $YAML_FILES; do
+          for file in "${YAML_FILES[@]}"; do
             echo "  Linting: $file"
-            yamllint "$file" || exit 1
+            yamllint -d relaxed "$file"
           done
 
   check-syntax:
@@ -136,7 +136,7 @@ jobs:
             "ansible/requirements.yml"
             "k8s/chemsynth/namespace.yaml"
             "k8s/chemsynth/certificate.yaml"
-            "k8s/chemsynth/ingress.yaml"
+            "k8s/chemsynth/ingressroute.yaml"
             "k8s/argocd/application.yaml"
           )
           

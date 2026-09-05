@@ -29,7 +29,7 @@
     - name: Validate prerequisites
       block:
         - name: Check kubectl is available
-          command: kubectl version --client
+          ansible.builtin.command: kubectl version --client
           register: kubectl_check
           changed_when: false
           failed_when: kubectl_check.rc != 0
@@ -51,24 +51,24 @@
               app.kubernetes.io/part-of: askcos
 
     - name: Generate random MongoDB passwords
-      set_fact:
+      ansible.builtin.set_fact:
         mongodb_root_password: "{{ lookup('password', '/tmp/mongoroot', length=passwd_len) }}"
         mongodb_password: "{{ lookup('password', '/tmp/mongo', length=passwd_len) }}"
 
     - name: Generate random MySQL password
-      set_fact:
+      ansible.builtin.set_fact:
         mysql_root_password: "{{ lookup('password', '/tmp/mysql', length=passwd_len) }}"
 
     - name: Generate random Redis password
-      set_fact:
+      ansible.builtin.set_fact:
         redis_password: "{{ lookup('password', '/tmp/redis', length=passwd_len) }}"
 
     - name: Generate random RabbitMQ password
-      set_fact:
+      ansible.builtin.set_fact:
         rabbitmq_password: "{{ lookup('password', '/tmp/rabbitmq', length=passwd_len) }}"
 
     - name: Generate random MySQL password
-      set_fact:
+      ansible.builtin.set_fact:
         mysql_root_password: "{{ lookup('password', '/tmp/mysql', length=passwd_len) }}"
 
     - name: Create MongoDB credentials secret
@@ -157,7 +157,7 @@
         src: "./../k8s/argocd/application.yaml"
 
     - name: Display generated passwords
-      debug:
+      ansible.builtin.debug:
         msg: |
           Generated Database Passwords (store these securely):
           MongoDB Root: {{ mongodb_root_password }}
@@ -167,7 +167,7 @@
           RabbitMQ: {{ rabbitmq_password }}
 
     - name: Display deployment summary
-      debug:
+      ansible.builtin.debug:
         msg: |
           ASKCOS Chemical Retrosynthesis Secrets Created!
           
