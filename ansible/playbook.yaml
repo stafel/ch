@@ -31,6 +31,10 @@
           changed_when: false
           failed_when: kubectl_check.rc != 0
 
+        # todo check the python module kubernetes
+
+        # todo check if password was changed for real
+
     - name: Create namespace
       kubernetes.core.k8s:
         api_version: v1
