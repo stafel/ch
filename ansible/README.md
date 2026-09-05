@@ -14,7 +14,7 @@ The playbook performs the following:
    - `redis-credentials` - Redis password
    - `rabbitmq-credentials` - RabbitMQ username and password
    - `askcos-env` - ASKCOS application secrets (V1_USERNAME, V1_PASSWORD)
-   - `gitlab-registry` - Container registry credentials (optional)
+   - `gitlab-registry` - Container registry credentials (required)
 4. **Argo CD Deployment**: Deploys the Argo CD Application manifest
 
 ## Prerequisites
@@ -42,26 +42,13 @@ ansible-galaxy collection install kubernetes.core community.general
 
 ## Usage
 
-### Basic Deployment (Minimal Input)
+### Deployment
 
-Only `v1_password` is required - all other passwords are auto-generated:
-
-```bash
-ansible-playbook playbook.yaml -e v1_password=YOUR_V1_PASSWORD
-```
-
-### Custom Username
-
-```bash
-ansible-playbook playbook.yaml -e v1_password=YOUR_V1_PASSWORD -e v1_username=custom_user
-```
-
-### With Container Registry
+GitLab registry credentials are required to pull the private ASKCOS images. Database passwords are auto-generated:
 
 ```bash
 ansible-playbook playbook.yaml \
   -e v1_password=YOUR_V1_PASSWORD \
-  -e registry_enabled=true \
   -e registry_server=registry.gitlab.com \
   -e registry_username=your_username \
   -e registry_password=your_password \
@@ -75,7 +62,10 @@ Create a `vars.yaml` file:
 ```yaml
 v1_username: "askcos"
 v1_password: "your_v1_password_here"
-registry_enabled: false
+registry_server: "registry.gitlab.com"
+registry_username: "your_username"
+registry_password: "your_password"
+registry_email: "your@email.com"
 ```
 
 Then run:
@@ -110,11 +100,10 @@ ansible-playbook playbook.yaml -e @vars.yaml
   - `V1_USERNAME`: Configurable (default: `askcos`)
   - `V1_PASSWORD`: **REQUIRED** - You must provide this
 
-### Optional Secrets
+### Required Registry Secret
 
 - **gitlab-registry**
   - Docker registry credentials for pulling private images
-  - Only created if `registry_enabled: true`
   - Uses `kubernetes.io/dockerconfigjson` type
 
 ## Argo CD Application Deployment

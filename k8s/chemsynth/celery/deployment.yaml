@@ -19,6 +19,8 @@ spec:
         app.kubernetes.io/part-of: askcos
         version: "2.0"
     spec:
+      imagePullSecrets:
+        - name: gitlab-registry
       containers:
         - name: celery
           image: registry.gitlab.com/mlpds_mit/askcosv2/askcos2_core/celery:2.0
