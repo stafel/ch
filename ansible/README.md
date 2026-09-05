@@ -1,6 +1,6 @@
-# ASKCOS Chemical Retrosynthesis - Ansible Deployment
+# ASKCOS Chemical Retrosynthesis - Ansible Secrets Setup
 
-This Ansible playbook deploys the ASKCOS (FourThievesVinegar fork) chemical retrosynthesis application to a Kubernetes cluster using Argo CD.
+This Ansible playbook creates the required Kubernetes secrets for deploying ASKCOS (FourThievesVinegar fork) chemical retrosynthesis application. The actual application deployment is managed by Argo CD.
 
 ## Prerequisites
 
@@ -11,14 +11,12 @@ The target Kubernetes cluster must have the following already installed:
 - **cert-manager** for TLS certificate management
 - **Argo CD** for GitOps deployment
 - **kubectl** configured to access the cluster
-- **helm** CLI tool
-- **Ansible** 2.14+ with `kubernetes.core` and `community.general` collections
+- **Ansible** 2.14+ with `kubernetes.core` collection
 
 ### Required Ansible Collections
 
 ```bash
 ansible-galaxy collection install kubernetes.core
-ansible-galaxy collection install community.general
 ```
 
 ## Quick Start
@@ -68,32 +66,54 @@ ansible-playbook playbook.yaml --check
 ansible-playbook playbook.yaml
 ```
 
-## Usage
+## What This Playbook Does
 
-### Deploy Everything
+This playbook **only creates Kubernetes secrets**. It does NOT deploy the application.
 
-```bash
-ansible-playbook playbook.yaml
-```
+1. **Validates Prerequisites**: Checks that kubectl is available and cluster is accessible
 
-### Deploy with Custom Variables
+2. **Creates All Required Secrets**:
+   - `mongodb-credentials` - MongoDB root and user passwords
+   - `mysql-credentials` - MySQL root password
+   - `redis-credentials` - Redis password
+   - `rabbitmq-credentials` - RabbitMQ password
+   - `askcos-env` - ASKCOS application secrets (OAUTH2, V1 credentials)
+   - `gitlab-registry` - Container registry credentials for pulling images
 
-```bash
-ansible-playbook playbook.yaml \
-  -e mongodb_root_password=mysecret \
-  -e mongodb_password=mysecret \
-  -e registry_username=myuser \
-  -e registry_password=mypassword
-```
+## Post-Secrets Creation: Deploy with Argo CD
 
-### Use a Variables File
+After running this playbook, deploy the Argo CD Application:
 
 ```bash
-# Create vars.yaml with your secrets
-ansible-playbook playbook.yaml -e @vars.yaml
+# Deploy Argo CD Application
+kubectl apply -f k8s/argocd/application.yaml
 ```
 
-### Encrypted Variables (Recommended)
+The Argo CD Application will deploy:
+- Namespace: `chemsynth`
+- Certificate: TLS certificate for `synth.maus.local` via cert-manager
+- IngressRoute: Traefik configuration for HTTPS access
+- ASKCOS Helm chart from `ASKCOS/askcos-deploy` with custom values
+
+### Verify Deployment
+
+```bash
+# Check Argo CD sync status
+argocd app get askcos-chemsynth
+
+# Monitor pods
+kubectl -n chemsynth get pods -w
+
+# Check certificate
+kubectl -n chemsynth get certificate
+
+# Access application
+# https://synth.maus.local
+```
+
+## Customization
+
+### Encrypted Variables (Recommended for Production)
 
 For production, use Ansible Vault:
 
@@ -108,137 +128,42 @@ ansible-vault edit secrets.yaml
 ansible-playbook playbook.yaml --ask-vault-pass
 ```
 
-## What This Playbook Does
+### Custom Namespace
 
-1. **Validates Prerequisites**: Checks that kubectl, helm are available and cluster is accessible
-
-2. **Creates Namespace**: Creates the `chemsynth` namespace
-
-3. **Creates TLS Certificate**: Uses cert-manager to create a certificate for `synth.maus.local`
-
-4. **Creates IngressRoute**: Configures Traefik IngressRoute with TLS termination
-
-5. **Creates All Required Secrets**:
-   - MongoDB credentials
-   - MySQL credentials
-   - Redis credentials
-   - RabbitMQ credentials
-   - ASKCOS environment secrets
-   - Container registry credentials
-
-6. **Deploys Argo CD Application**: Creates the Argo CD Application that manages the ASKCOS Helm chart
-
-## Post-Deployment Verification
-
-### Check Certificate Status
-
-```bash
-kubectl -n chemsynth get certificate
-kubectl -n chemsynth describe certificate synth-maus-local-tls
-```
-
-### Check Argo CD Application
-
-```bash
-argocd app get askcos-chemsynth
-argocd app logs askcos-chemsynth
-```
-
-### Monitor Pods
-
-```bash
-kubectl -n chemsynth get pods -w
-```
-
-### Access the Application
-
-Once all pods are ready, access ASKCOS at: https://synth.maus.local
-
-## Customization
-
-### Resource Configuration
-
-Override resource requests/limits by setting these variables:
+Change the namespace variable:
 
 ```yaml
-mongodb_storage_size: 20Gi
-mongodb_memory_request: 2Gi
-mongodb_memory_limit: 4Gi
-app_memory_request: 4Gi
-nginx_memory_request: 512Mi
-```
-
-### Enable ML Servers
-
-To enable ML servers, modify the Argo CD Application values in the playbook or create a custom values file.
-
-### Custom Domain
-
-Change the domain variable:
-
-```yaml
-domain: your-domain.com
-```
-
-### Different cert-manager Issuer
-
-If using a self-signed issuer for testing:
-
-```yaml
-cert_manager_issuer: selfsigned-cluster-issuer
-cert_manager_issuer_kind: ClusterIssuer
+namespace: your-namespace
 ```
 
 ## Troubleshooting
 
-### Certificate Not Issuing
+### Secrets Not Created
 
 ```bash
-# Check certificate events
-kubectl -n chemsynth describe certificate
+# Check if namespace exists
+kubectl get ns chemsynth
 
-# Check cert-manager logs
-kubectl -n cert-manager logs -l app=cert-manager
+# Check secret creation
+kubectl -n chemsynth get secrets
 
-# Check challenges
-kubectl -n chemsynth get challenges
+# Check kubectl access
+kubectl cluster-info
 ```
 
-### Pods Not Starting
+### Permission Issues
 
-```bash
-# Check pod events
-kubectl -n chemsynth get events --sort-by=.metadata.creationTimestamp
-
-# Check pod logs
-kubectl -n chemsynth logs <pod-name>
-
-# Describe pod
-kubectl -n chemsynth describe pod <pod-name>
-```
-
-### Argo CD Sync Issues
-
-```bash
-# Check sync status
-argocd app get askcos-chemsynth
-
-# Check sync logs
-argocd app logs askcos-chemsynth
-
-# Force sync
-argocd app sync askcos-chemsynth
-```
+Ensure your kubectl context has permissions to create secrets in the target namespace.
 
 ## Security Notes
 
 1. **Never commit unencrypted secrets** to version control
 2. Use Ansible Vault for production deployments
 3. Rotate all `CHANGE_ME_*` passwords before production use
-4. Consider using external secret managers (Vault, AWS Secrets Manager)
+4. The playbook only creates secrets - it does not deploy any application resources
 
 ## Files
 
-- `playbook.yaml` - Main Ansible playbook
+- `playbook.yaml` - Main Ansible playbook for secret creation
 - `docker-config.json.j2` - Template for Docker registry configuration
 - `requirements.yml` - Ansible collection requirements

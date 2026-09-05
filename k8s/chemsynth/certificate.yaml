@@ -1,7 +1,7 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: synth-maus-local
+  name: synth-maus-local-tls
   namespace: chemsynth
 spec:
   secretName: synth-maus-local-tls
@@ -11,8 +11,3 @@ spec:
     group: cert-manager.io
   dnsNames:
     - synth.maus.local
-  # For self-signed or local CA, use:
-  # issuerRef:
-  #   name: selfsigned-issuer
-  #   kind: Issuer
-  #   group: cert-manager.io
