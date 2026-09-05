@@ -8,22 +8,17 @@
     # Namespace
     namespace: chemsynth
     
-    # Database Credentials - CHANGE THESE
-    mongodb_root_password: "CHANGE_ME_mongodb_root_password"
-    mongodb_password: "CHANGE_ME_mongodb_password"
-    mysql_root_password: "CHANGE_ME_mysql_root_password"
-    redis_password: "CHANGE_ME_redis_password"
-    rabbitmq_password: "CHANGE_ME_rabbitmq_password"
-    
-    # ASKCOS Application Secrets - CHANGE THESE
+    # User-facing credentials - CHANGE THESE
     v1_username: "askcos"
     v1_password: "CHANGE_ME_v1_password"
     
-    # Container Registry - CHANGE THESE (GitLab registry for FourThievesVinegar images)
+    # Container Registry - OPTIONAL (only needed for private registry access)
+    # If using public images, these can be left as defaults (anonymous access)
+    registry_enabled: false
     registry_server: "registry.gitlab.com"
-    registry_username: "CHANGE_ME_gitlab_username"
-    registry_password: "CHANGE_ME_gitlab_access_token"
-    registry_email: "CHANGE_ME_your_email@example.com"
+    registry_username: ""
+    registry_password: ""
+    registry_email: ""
 
   tasks:
     - name: Validate prerequisites
@@ -34,12 +29,22 @@
           changed_when: false
           failed_when: kubectl_check.rc != 0
 
-    - name: Ensure namespace exists
-      kubernetes.core.k8s:
-        name: "{{ namespace }}"
-        api_version: v1
-        kind: Namespace
-        state: present
+    - name: Generate random MongoDB passwords
+      set_fact:
+        mongodb_root_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
+        mongodb_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
+
+    - name: Generate random MySQL password
+      set_fact:
+        mysql_root_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
+
+    - name: Generate random Redis password
+      set_fact:
+        redis_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
+
+    - name: Generate random RabbitMQ password
+      set_fact:
+        rabbitmq_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
 
     - name: Create MongoDB credentials secret
       kubernetes.core.k8s:
@@ -104,7 +109,7 @@
             V1_USERNAME: "{{ v1_username }}"
             V1_PASSWORD: "{{ v1_password }}"
 
-    - name: Create container registry secret
+    - name: Create container registry secret (optional)
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
@@ -117,11 +122,17 @@
             ".dockerconfigjson": "{{ lookup('template', 'docker-config.json.j2') | b64encode }}"
       vars:
         docker_auth: "{{ registry_username }}:{{ registry_password }}"
+      when: registry_enabled | bool
 
-    - name: Apply the Argo CD Application
-      kubernetes.core.k8s:
-        state: present
-        src: "./../k8s/argocd/application.yaml"
+    - name: Display generated passwords
+      debug:
+        msg: |
+          Generated Database Passwords (store these securely):
+          MongoDB Root: {{ mongodb_root_password }}
+          MongoDB User: {{ mongodb_password }}
+          MySQL Root: {{ mysql_root_password }}
+          Redis: {{ redis_password }}
+          RabbitMQ: {{ rabbitmq_password }}
 
     - name: Display deployment summary
       debug:
@@ -131,17 +142,22 @@
           Namespace: {{ namespace }}
           
           Secrets Created:
-            - mongodb-credentials
-            - mysql-credentials
-            - redis-credentials
-            - rabbitmq-credentials
-            - askcos-env
-            - gitlab-registry
+            - mongodb-credentials (with auto-generated passwords)
+            - mysql-credentials (with auto-generated password)
+            - redis-credentials (with auto-generated password)
+            - rabbitmq-credentials (with auto-generated password)
+            - askcos-env (with your V1 credentials)
+          {% if registry_enabled | bool %}
+            - gitlab-registry (container registry credentials)
+          {% else %}
+            - gitlab-registry (SKIPPED - using anonymous access)
+          {% endif %}
           
           Next Steps:
-            1. Argo CD will deploy: namespace, certificate, ingressroute, and ASKCOS helm chart
-            2. Monitor deployment: kubectl -n {{ namespace }} get pods
-            3. Access application at: https://synth.maus.local
+            1. Deploy the Argo CD Application: kubectl apply -f k8s/argocd/application.yaml
+            2. Argo CD will deploy: namespace, certificate, ingressroute, and all ASKCOS components
+            3. Monitor deployment: kubectl -n {{ namespace }} get pods
+            4. Access application at: https://synth.maus.local
           
-          Note: The Argo CD Application uses directoryRecurse to deploy all manifests
-          in k8s/chemsynth/ including namespace, certificate, and ingressroute.
+          Note: Database passwords have been auto-generated with secure random values.
+          Only V1_PASSWORD needs to be set by you (user-facing credential).

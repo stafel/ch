@@ -20,16 +20,25 @@ ansible-galaxy collection install -r requirements.yml
 
 ### 2. Configure Variables
 
-Edit `playbook.yaml` and change all `CHANGE_ME_*` variables, or create a `vars.yaml` file:
+Edit `playbook.yaml` and change the user-facing credentials:
+
+```yaml
+# playbook.yaml
+v1_password: "CHANGE_ME_v1_password"
+```
+
+Or create a `vars.yaml` file with your values:
 
 ```yaml
 # vars.yaml
-mongodb_root_password: "your_secure_password"
-mongodb_password: "your_secure_password"
-mysql_root_password: "your_secure_password"
-redis_password: "your_secure_password"
-rabbitmq_password: "your_secure_password"
 v1_password: "your_v1_password"
+```
+
+For container registry access (optional - only needed for private registries):
+
+```yaml
+# vars.yaml
+registry_enabled: true
 registry_username: "your_gitlab_username"
 registry_password: "your_gitlab_access_token"
 registry_email: "your.email@example.com"
@@ -56,13 +65,20 @@ This playbook **only creates Kubernetes secrets**. It does NOT deploy the applic
 
 1. **Validates Prerequisites**: Checks that kubectl is available and cluster is accessible
 
-2. **Creates All Required Secrets** in the `chemsynth` namespace:
-   - `mongodb-credentials` - MongoDB root and user passwords
-   - `mysql-credentials` - MySQL root password
-   - `redis-credentials` - Redis password
-   - `rabbitmq-credentials` - RabbitMQ password
-   - `askcos-env` - ASKCOS application secrets (OAUTH2, V1 credentials)
-   - `gitlab-registry` - Container registry credentials for pulling images
+2. **Auto-generates secure passwords** for non-user-facing database credentials:
+   - MongoDB root password (32 chars, random)
+   - MongoDB user password (32 chars, random)
+   - MySQL root password (32 chars, random)
+   - Redis password (32 chars, random)
+   - RabbitMQ password (32 chars, random)
+
+3. **Creates All Required Secrets** in the `chemsynth` namespace:
+   - `mongodb-credentials` - MongoDB root and user passwords (auto-generated)
+   - `mysql-credentials` - MySQL root password (auto-generated)
+   - `redis-credentials` - Redis password (auto-generated)
+   - `rabbitmq-credentials` - RabbitMQ password (auto-generated)
+   - `askcos-env` - ASKCOS application secrets (V1 credentials - you provide)
+   - `gitlab-registry` - Container registry credentials (optional, only if `registry_enabled: true`)
 
 ## Post-Secrets Creation: Deploy with Argo CD
 
@@ -76,7 +92,7 @@ The Argo CD Application will deploy:
 - Namespace: `chemsynth`
 - Certificate: TLS certificate for `synth.maus.local` via cert-manager
 - IngressRoute: Traefik configuration for HTTPS access
-- ASKCOS Helm chart from `ASKCOS/askcos-deploy` with custom values
+- All ASKCOS components (MongoDB, Redis, RabbitMQ, App, Nginx, Celery)
 
 ### Verify Deployment
 
@@ -119,12 +135,27 @@ Change the namespace variable:
 namespace: your-namespace
 ```
 
+### Container Registry
+
+By default, the registry secret creation is **disabled** (`registry_enabled: false`). 
+This allows anonymous access to public container images.
+
+To enable private registry access:
+
+```yaml
+registry_enabled: true
+registry_username: "your_username"
+registry_password: "your_token_or_password"
+registry_email: "your.email@example.com"
+```
+
 ## Security Notes
 
-1. **Never commit unencrypted secrets** to version control
-2. Use Ansible Vault for production deployments
-3. Rotate all `CHANGE_ME_*` passwords before production use
-4. The playbook only creates secrets - it does not deploy any application resources
+1. **Auto-generated passwords**: All database passwords are generated with secure random values (32 characters, including letters, digits, hexdigits, and special characters).
+2. **Only user-facing credentials need manual input**: Only `v1_password` must be provided by you.
+3. **Never commit unencrypted secrets** to version control
+4. Use Ansible Vault for production deployments
+5. The playbook only creates secrets - it does not deploy any application resources
 
 ## Files
 
