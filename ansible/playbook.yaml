@@ -6,8 +6,10 @@
   
   vars:
     # Namespace
-    namespace: chemsynth
+    kubenamespace: chemsynth
     
+    passwd_len: 32
+
     # User-facing credentials - CHANGE THESE
     v1_username: "askcos"
     v1_password: "CHANGE_ME_v1_password"
@@ -29,38 +31,40 @@
           changed_when: false
           failed_when: kubectl_check.rc != 0
 
-    - name: Create chemsynth namespace
+    - name: Create namespace
       kubernetes.core.k8s:
         api_version: v1
         kind: Namespace
-        name: "{{ namespace }}"
+        name: "{{ kubenamespace }}"
         state: present
-        labels:
-          name: "{{ namespace }}"
-          app.kubernetes.io/part-of: askcos
+        definition:
+          metadata:
+            labels:
+              name: "{{ kubenamespace }}"
+              app.kubernetes.io/part-of: askcos
 
     - name: Generate random MongoDB passwords
       set_fact:
-        mongodb_root_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
-        mongodb_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
+        mongodb_root_password: "{{ lookup('password', '/tmp/mongoroot', length=passwd_len) }}"
+        mongodb_password: "{{ lookup('password', '/tmp/mongo', length=passwd_len) }}"
 
     - name: Generate random MySQL password
       set_fact:
-        mysql_root_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
+        mysql_root_password: "{{ lookup('password', '/tmp/mysql', length=passwd_len) }}"
 
     - name: Generate random Redis password
       set_fact:
-        redis_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
+        redis_password: "{{ lookup('password', '/tmp/redis', length=passwd_len) }}"
 
     - name: Generate random RabbitMQ password
       set_fact:
-        rabbitmq_password: "{{ lookup('password', 'chars=ascii_letters,digits,hexdigits,special,length=32') }}"
+        rabbitmq_password: "{{ lookup('password', '/tmp/rabbitmq', length=passwd_len) }}"
 
     - name: Create MongoDB credentials secret
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
-        namespace: "{{ namespace }}"
+        namespace: "{{ kubenamespace }}"
         name: mongodb-credentials
         state: present
         definition:
@@ -74,7 +78,7 @@
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
-        namespace: "{{ namespace }}"
+        namespace: "{{ kubenamespace }}"
         name: mysql-credentials
         state: present
         definition:
@@ -86,7 +90,7 @@
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
-        namespace: "{{ namespace }}"
+        namespace: "{{ kubenamespace }}"
         name: redis-credentials
         state: present
         definition:
@@ -98,7 +102,7 @@
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
-        namespace: "{{ namespace }}"
+        namespace: "{{ kubenamespace }}"
         name: rabbitmq-credentials
         state: present
         definition:
@@ -110,7 +114,7 @@
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
-        namespace: "{{ namespace }}"
+        namespace: "{{ kubenamespace }}"
         name: askcos-env
         state: present
         definition:
@@ -123,7 +127,7 @@
       kubernetes.core.k8s:
         api_version: v1
         kind: Secret
-        namespace: "{{ namespace }}"
+        namespace: "{{ kubenamespace }}"
         name: gitlab-registry
         state: present
         definition:
@@ -137,7 +141,7 @@
     - name: Deploy Argo CD Application
       kubernetes.core.k8s:
         state: present
-        src: k8s/argocd/application.yaml
+        src: "./../k8s/argocd/application.yaml"
 
     - name: Display generated passwords
       debug:
@@ -154,7 +158,7 @@
         msg: |
           ASKCOS Chemical Retrosynthesis Secrets Created!
           
-          Namespace: {{ namespace }}
+          Namespace: {{ kubenamespace }}
           
           Secrets Created:
             - mongodb-credentials (with auto-generated passwords)
@@ -170,7 +174,7 @@
           
           Next Steps:
             1. Argo CD will deploy: namespace, certificate, ingressroute, and all ASKCOS components
-            2. Monitor deployment: kubectl -n {{ namespace }} get pods
+            2. Monitor deployment: kubectl -n {{ kubenamespace }} get pods
             3. Access application at: https://synth.maus.local
           
           Note: Database passwords have been auto-generated with secure random values.
